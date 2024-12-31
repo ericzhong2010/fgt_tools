@@ -4,12 +4,16 @@
 ## 功能简介
 
 - **配置备份**：从 FortiGate 设备中备份全局配置为 `.conf` 文件。
+  ![image](https://github.com/user-attachments/assets/dea07c26-c7ff-4903-bfe9-0fb298719495)
+
 - **数据导出**：通过 API 批量导出以下模块的数据：
   - 本地用户配置
   - 用户组
   - 系统管理员
   - 网络接口
   - 防火墙策略
+  ![image](https://github.com/user-attachments/assets/86cadbdc-0160-429c-854b-d4cb4f48057d)
+
 
 ## 使用说明
 
