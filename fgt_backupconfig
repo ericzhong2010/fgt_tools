@@ -1,0 +1,113 @@
+# -*- coding:utf-8 -*-
+"""
+ @Author: eric.zhong
+ @Email: ericzhong2010@qq.com
+ @Date: 2024/12/31
+ @Project: fgt_tools 
+ @Description：
+"""
+
+import urllib3
+import requests
+from openpyxl import Workbook
+from datetime import datetime
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class FGT_API(object):
+    def __init__(self, api_url, api_key):
+        self.api_url = api_url
+        self.api_key = api_key
+        self.headers = {
+            "Authorization": "Bearer " + self.api_key,
+        }
+
+    def fgt_controller(self):
+        excel_path = f'./output/fgt_export_config_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+
+        # 创建或加载 Excel 文件
+        wb = Workbook()
+        print(f"[*] Created new Excel file: {excel_path}")
+        self.fgt_backup_configuration() # 备份配置
+
+        self.export_restful_api_to_excel("/api/v2/cmdb/user/local", wb, "user") # 导出本地用户配置
+        self.export_restful_api_to_excel("/api/v2/cmdb/user/group", wb, "group")
+        self.export_restful_api_to_excel("/api/v2/cmdb/system/interface", wb, "interface")
+        self.export_restful_api_to_excel("/api/v2/cmdb/firewall/policy", wb, "policy")
+
+        # 保存 Excel 文件
+        wb.save(excel_path)
+        print(f"[*] Data saved to Excel file: {excel_path}")
+
+    def export_restful_api_to_excel(self, restful_api, workbook, sheet_name):
+        print(f"[*] Try to access {restful_api}")
+        try:
+            data = requests.get(self.api_url + f"{restful_api}", headers=self.headers, verify=False)
+            results = data.json().get("results", [])
+        except requests.exceptions.RequestException as e:
+            print(f"[!] Error accessing API: {e}")
+            return
+
+        self._write_to_sheet(workbook, sheet_name, results)
+
+
+    @staticmethod
+    def _write_to_sheet(wb, sheet_name, results):
+        """通用方法：将数据写入指定的 sheet"""
+        if not results:
+            print(f"[!] No data found for sheet: {sheet_name}")
+            return
+
+        # 获取或创建指定 sheet
+        if sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            print(f"[*] Using existing sheet: {sheet_name}")
+        else:
+            ws = wb.create_sheet(title=sheet_name)
+            print(f"[*] Created new sheet: {sheet_name}")
+
+        # 写入标题行
+        if ws.max_row == 1:  # 如果是新建 sheet，添加标题行
+            ws.append(list(results[0].keys()))
+            print(f"[*] Added header row for sheet: {sheet_name}")
+
+        def format_cell_value(value):
+            """
+            格式化单元格的值，将字符串、数组、字典等类型转换为适合写入 Excel 的格式。
+            """
+            if isinstance(value, dict):  # 如果是字典，转换为 key=value 格式的字符串
+                return "; ".join([f"{k}={v}" for k, v in value.items()])
+            elif isinstance(value, list):  # 如果是列表，转换为逗号分隔的字符串
+                return ", ".join(map(str, value))
+            elif value is None:  # 处理空值
+                return ""
+            else:  # 其他类型直接转换为字符串
+                return str(value)
+
+        # 写入每个结果的内容
+        for item in results:
+            row = [format_cell_value(value) for value in item.values()]
+            ws.append(row)
+
+    def fgt_backup_configuration(self):
+        print("[*] Try to access /api/v2/monitor/system/config/backup?scope=global")
+        try:
+            data = requests.get(self.api_url + "/api/v2/monitor/system/config/backup?scope=global", headers=self.headers, verify=False)
+        except requests.exceptions.RequestException as e:
+            print(f"[!] Error accessing API: {e}")
+            return
+
+        if data:
+            with open(f'./output/fgt_backup_config_{datetime.now().strftime("%Y%m%d_%H%M")}.conf', 'wb') as f:
+                for line in data:
+                    f.write(line)
+        print("[*] Data saved to file: fgt_backup_config_{}.conf".format(datetime.now().strftime("%Y%m%d_%H%M")))
+
+
+if __name__ == '__main__':
+    api_url = 'https://API_URL'  # Fortigate API 地址
+    api_key = 'API_KEY'  # 获取到的 API 密钥
+
+    fgt_api = FGT_API(api_url, api_key) # 创建 FGT_API 对象
+    fgt_api.fgt_controller() # 执行主函数
+
